@@ -37,16 +37,11 @@ protected:
 public:
 	afx_msg void OnFileExit();
 	PhoneListBox Item;
-	afx_msg void OnBnClickedAdditembutton();
-	afx_msg void OnBnClickedEdititembutton();
-	void RefreshItem(int);
+	void RefreshItem(int,int);
 	CMFCEditBrowseCtrl PhoneEdit;
 	CStatic PhoneLabel;
-	CMFCButton RemoveItemButton;
-	CMFCButton SaveItemButton;
 	CMFCEditBrowseCtrl SurnameEdit;
 	CStatic SurnameLabel;
-	CMFCButton AddItemButton;
 	CMFCEditBrowseCtrl BuildingEdit;
 	CMFCEditBrowseCtrl FlatEdit;
 	CMFCEditBrowseCtrl HouseEdit;
@@ -56,8 +51,6 @@ public:
 	CMFCButton SearchSurnameButton;
 	CMFCEditBrowseCtrl SecnameEdit;
 	CMFCEditBrowseCtrl StreetEdit;
-	afx_msg void OnBnClickedSaveitembutton();
-	afx_msg void OnBnClickedRemoveitembutton();
 	afx_msg void OnBnClickedSearchphonebutton();
 	afx_msg void OnBnClickedSearchsurnamebutton();
 	afx_msg void OnBnClickedSearchstreetbutton();

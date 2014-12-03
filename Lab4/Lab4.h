@@ -31,10 +31,5 @@ LAB4_API int SearchStreat(const TCHAR* surname, Record* buf);
 
 LAB4_API int SearchPhoneNumber(int number, Record* buf);
 
-LAB4_API void Change(Record oldRecord, Record newRecord);
-
-LAB4_API void Add(Record record);
-
-LAB4_API void Delete(Record record);
 
 
