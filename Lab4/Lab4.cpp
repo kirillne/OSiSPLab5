@@ -6,6 +6,8 @@
 #include "Lab4.h"
 #include "HashTable.h"
 
+#define BLOCKSIZE 0x10000
+
 bool databaseOpened = false;
 
 void CloseDatabase();
@@ -142,8 +144,19 @@ void OpenDatabase()
 	InitializeCriticalSection(&criticalSection);
 
 	HANDLE hFile;
-	hFile = CreateFile(TEXT("E://telbase.txt"), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	hMap = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 1, 0, L"name1");
+	hFile = CreateFile(TEXT("E:\\telbase.txt"), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	LARGE_INTEGER	fileSize;
+	if (GetFileSizeEx(hFile, &fileSize) == FALSE) {
+		CloseHandle(hFile);
+		return;
+	}
+
+	hMap = CreateFileMapping(
+		hFile,
+		NULL,
+		PAGE_READONLY,
+		fileSize.HighPart, fileSize.LowPart, L"name");
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -159,16 +172,22 @@ void OpenDatabase()
 	TCHAR string[255];
 	int size = 255;
 	int stringLenght = 0;
-	int offset = 0;
+	long long offset = 0;
+	int blockNumber = 0;
 	while (ReadLine(hFile, string, size, &stringLenght))
 	{
 		if (string[0] == 0) continue;
 		Record record = ConvertStringToRecord(string);
 
-		surNameHashTable->AddElement(record.Surname, offset);
-		streatHashTable->AddElement(record.Streat, offset);
-		phoneNumberHashTable->AddElement(std::to_wstring(record.PhoneNumber), offset);
+		surNameHashTable->AddElement(record.Surname, offset,blockNumber);
+		streatHashTable->AddElement(record.Streat, offset, blockNumber);
+		phoneNumberHashTable->AddElement(std::to_wstring(record.PhoneNumber), offset, blockNumber);
 		offset += stringLenght;
+		if (offset >= BLOCKSIZE)
+		{
+			blockNumber++;
+			offset -= BLOCKSIZE;
+		}
 	}
 	databaseOpened = true;
 	CloseHandle(hFile);
@@ -183,27 +202,27 @@ void CloseDatabase()
 	databaseOpened = false;
 }
 
-Record GetElement(int offset)
+Record GetElement(ListElement element)
 {
-	TCHAR* string = (TCHAR*)MapViewOfFile(hMap, FILE_MAP_ALL_ACCESS, 0, offset, 256);
+	TCHAR* string = (TCHAR*)MapViewOfFile(hMap, FILE_MAP_READ, 0, element.BlockOffset*BLOCKSIZE*sizeof(TCHAR), BLOCKSIZE);
+	int a = GetLastError();
+	string += element.Offset;
 	Record result =  ConvertStringToRecord(string);
 	UnmapViewOfFile(string);
-	free(string);
+	
 	return result;
 }
 
 int Search(const TCHAR* surname, Record* buf, HashTable* hashTable)
 {
 
-	int offsets[255];
-	hashTable->GetIndex(std::wstring(surname), offsets);
-	int i = 0;
-	while (offsets[i] != -1)
+	ListElement elemnts[255];
+	int count = hashTable->GetIndex(std::wstring(surname), elemnts);
+	for (int i = 0; i < count; i++)
 	{
-		buf[i] = GetElement(offsets[i]);
-		i++;
+		buf[i] = GetElement(elemnts[i]);
 	}
-	return i;
+	return count;
 }
 
 

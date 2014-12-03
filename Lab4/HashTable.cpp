@@ -12,12 +12,13 @@ HashTable::HashTable()
 	}
 }
 
-void HashTable::AddElement(std::wstring value, int offset)
+void HashTable::AddElement(std::wstring value, long long offset, int blockOffset)
 {
 	int hash = GetHash(value);
-	HashTable::ListElement element;
+	ListElement element;
 	element.Offset = offset;
 	element.Value = value;
+	element.BlockOffset = blockOffset;
 	headers[hash]->push_back(element);
 }
 
@@ -32,11 +33,11 @@ int HashTable::GetHash(std::wstring value)
 	return hash > -1 ? hash : -hash;
 }
 
-void  HashTable::GetIndex(std::wstring value, int* buf)
+int  HashTable::GetIndex(std::wstring value, ListElement* buf)
 {
 	int hash = GetHash(value);
 	int foundedCount = 0;
-	for (std::vector<HashTable::ListElement>::const_iterator it = headers[hash]->begin(); 
+	for (std::vector<ListElement>::const_iterator it = headers[hash]->begin(); 
 		it != headers[hash]->end(); ++it)
 	{
 		bool result = true;
@@ -48,10 +49,10 @@ void  HashTable::GetIndex(std::wstring value, int* buf)
 		}
 		if (result)
 		{
-			buf[foundedCount++] = it->Offset;
+			buf[foundedCount++] = *it;
 		}
 	}
-	buf[foundedCount] = -1;
+	return foundedCount;
 }
 
 HashTable::~HashTable()
