@@ -12,8 +12,6 @@ void CloseDatabase();
 
 void OpenDatabase();
 
-std::vector<Record>* dataBase;
-
 HashTable* surNameHashTable;
 
 HashTable* streatHashTable;
@@ -21,6 +19,8 @@ HashTable* streatHashTable;
 HashTable* phoneNumberHashTable;
 
 CRITICAL_SECTION criticalSection;
+
+HANDLE hMap;
 
 
 BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -46,7 +46,7 @@ BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	return TRUE;
 }
 
-BOOL ReadLine(HANDLE hFile, TCHAR *pszBuffer, DWORD dwSize)
+BOOL ReadLine(HANDLE hFile, TCHAR *pszBuffer, DWORD dwSize, int* readed)
 {
 	
 	DWORD i, dwRead;
@@ -74,10 +74,12 @@ BOOL ReadLine(HANDLE hFile, TCHAR *pszBuffer, DWORD dwSize)
 			break;
 		}
 	}
+	*readed = i + 1;
 
 	if (i >= dwRead)
 	{
 		pszBuffer[i] = 0;
+		
 	}
 	else
 	{
@@ -102,11 +104,47 @@ int ReadElement(TCHAR *element, TCHAR* string, int start)
 	return i + 1;
 }
 
+Record ConvertStringToRecord(TCHAR* string)
+{
+	TCHAR element[255];
+	int elementStart = 0;
+	Record record;
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.PhoneNumber = _wtoi(element);
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.Surname = std::wstring(element);
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.Name = std::wstring(element);
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.SecName = std::wstring(element);
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.Streat = std::wstring(element);
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.House = _wtoi(element);
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.Building = _wtoi(element);
+
+	elementStart = ReadElement(element, string, elementStart);
+	record.Flat = _wtoi(element);
+	return record;
+}
+
+
 void OpenDatabase()
 {
 	InitializeCriticalSection(&criticalSection);
+
 	HANDLE hFile;
-	hFile = CreateFile(TEXT("E:\\telbase.txt"), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	hFile = CreateFile(TEXT("E://telbase.txt"), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	hMap = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 1, 0, L"name1");
+
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
 		int i = GetLastError();
@@ -117,76 +155,57 @@ void OpenDatabase()
 	surNameHashTable = new HashTable();
 	streatHashTable = new HashTable();
 	phoneNumberHashTable = new HashTable();
-	dataBase = new std::vector<Record>();
 
 	TCHAR string[255];
 	int size = 255;
-	while (ReadLine(hFile, string, size))
+	int stringLenght = 0;
+	int offset = 0;
+	while (ReadLine(hFile, string, size, &stringLenght))
 	{
 		if (string[0] == 0) continue;
-		TCHAR element[255];
-		int elementStart = 0;
-		Record record;
-		
-		elementStart = ReadElement(element, string, elementStart);
-		record.PhoneNumber = _wtoi(element);
+		Record record = ConvertStringToRecord(string);
 
-		elementStart = ReadElement(element, string, elementStart);
-		record.Surname = std::wstring(element);
-
-		elementStart = ReadElement(element, string, elementStart);
-		record.Name = std::wstring(element);
-
-		elementStart = ReadElement(element, string, elementStart);
-		record.SecName = std::wstring(element);
-
-		elementStart = ReadElement(element, string, elementStart);
-		record.Streat = std::wstring(element);
-
-		elementStart = ReadElement(element, string, elementStart);
-		record.House = _wtoi(element);
-
-		elementStart = ReadElement(element, string, elementStart);
-		record.Building = _wtoi(element);
-
-		elementStart = ReadElement(element, string, elementStart);
-		record.Flat = _wtoi(element);
-
-		int index = dataBase->size();
-		dataBase->push_back(record);
-		surNameHashTable->AddElement(record.Surname, index);
-		streatHashTable->AddElement(record.Streat, index);
-		phoneNumberHashTable->AddElement(std::to_wstring(record.PhoneNumber), index);
-
+		surNameHashTable->AddElement(record.Surname, offset);
+		streatHashTable->AddElement(record.Streat, offset);
+		phoneNumberHashTable->AddElement(std::to_wstring(record.PhoneNumber), offset);
+		offset += stringLenght;
 	}
 	databaseOpened = true;
 	CloseHandle(hFile);
 }
-
-
 
 void CloseDatabase()
 {
 	delete surNameHashTable;
 	delete streatHashTable;
 	delete phoneNumberHashTable;
-	delete dataBase;
+	CloseHandle(hMap);
 	databaseOpened = false;
+}
+
+Record GetElement(int offset)
+{
+	TCHAR* string = (TCHAR*)MapViewOfFile(hMap, FILE_MAP_ALL_ACCESS, 0, offset, 256);
+	Record result =  ConvertStringToRecord(string);
+	UnmapViewOfFile(string);
+	free(string);
+	return result;
 }
 
 int Search(const TCHAR* surname, Record* buf, HashTable* hashTable)
 {
 
-	int indexes[255];
-	hashTable->GetIndex(std::wstring(surname), indexes);
+	int offsets[255];
+	hashTable->GetIndex(std::wstring(surname), offsets);
 	int i = 0;
-	while (indexes[i] != -1)
+	while (offsets[i] != -1)
 	{
-		buf[i] = dataBase->at(indexes[i]);
+		buf[i] = GetElement(offsets[i]);
 		i++;
 	}
 	return i;
 }
+
 
 LAB4_API int SearchSurname(const TCHAR* surname, Record* buf)
 {

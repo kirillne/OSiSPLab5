@@ -4,12 +4,12 @@ class HashTable
 public:
 	struct ListElement
 	{
-		int Index;
+		int Offset;
 		std::wstring Value;
 	};
 	HashTable();
 	~HashTable();
-	void AddElement(std::wstring value, int index);
+	void AddElement(std::wstring value, int offset);
 	void GetIndex(std::wstring value, int* buf);
 private:
 	std::vector<ListElement>** headers;
