@@ -54,7 +54,11 @@ namespace BaseCreater
             {
                 while (!reader.EndOfStream)
                 {
-                    baseRecords.Add(new Record(reader.ReadLine()));
+                    string readLine = reader.ReadLine();
+                    if (readLine != String.Empty)
+                    {
+                        baseRecords.Add(new Record(readLine));
+                    }
                 }
             }
 
@@ -73,7 +77,7 @@ namespace BaseCreater
                 });
             }
 
-            using (var writer = new StreamWriter(new FileStream("telbase2.txt", FileMode.Create)))
+            using (var writer = new StreamWriter(new FileStream("telbase2.txt", FileMode.Create), Encoding.Unicode))
             {
                 foreach (Record record in result)
                 {

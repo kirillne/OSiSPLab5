@@ -31,5 +31,7 @@ LAB4_API int SearchStreat(const TCHAR* surname, Record* buf);
 
 LAB4_API int SearchPhoneNumber(int number, Record* buf);
 
+typedef std::wstring(*Operation) (Record);
+
 
 

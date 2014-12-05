@@ -6,8 +6,6 @@
 #include "Lab4.h"
 #include "HashTable.h"
 
-#define BLOCKSIZE 0x100000
-
 bool databaseOpened = false;
 
 void CloseDatabase();
@@ -23,8 +21,6 @@ HashTable* phoneNumberHashTable;
 CRITICAL_SECTION criticalSection;
 
 HANDLE hMap;
-
-LARGE_INTEGER	fileSize;
 
 
 BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -96,11 +92,11 @@ BOOL ReadLine(HANDLE hFile, TCHAR *pszBuffer, DWORD dwSize, int* readed)
 }
 
 
-long long  ReadElement(TCHAR *element, TCHAR* string, long long start)
+int ReadElement(TCHAR *element, TCHAR* string, int start)
 {
-	long long  i = start;
+	int i = start;
 	int elementIndex = 0;
-	while (string[i] != ';' && string[i] != '\r' && string[i] != '\0')
+	while (string[i] != ';')
 	{
 		element[elementIndex++] = string[i++];
 	}
@@ -108,37 +104,35 @@ long long  ReadElement(TCHAR *element, TCHAR* string, long long start)
 	return i + 1;
 }
 
-Record ConvertStringToRecord(TCHAR* string, long long* elementStart)
+Record ConvertStringToRecord(TCHAR* string)
 {
 	TCHAR element[255];
+	int elementStart = 0;
 	Record record;
-	if (string[*elementStart] == 65279) (*elementStart)++;
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.PhoneNumber = _wtoi(element);
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.Surname = std::wstring(element);
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.Name = std::wstring(element);
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.SecName = std::wstring(element);
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.Streat = std::wstring(element);
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.House = _wtoi(element);
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.Building = _wtoi(element);
 
-	*elementStart = ReadElement(element, string, *elementStart);
+	elementStart = ReadElement(element, string, elementStart);
 	record.Flat = _wtoi(element);
-	if (string[*elementStart] == '\r') (*elementStart)++;
-	if (string[*elementStart] == '\n') (*elementStart)++;
 	return record;
 }
 
@@ -149,18 +143,7 @@ void OpenDatabase()
 
 	HANDLE hFile;
 	hFile = CreateFile(TEXT("E:\\telbase.txt"), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-
-	
-	if (GetFileSizeEx(hFile, &fileSize) == FALSE) {
-		CloseHandle(hFile);
-		return;
-	}
-
-	hMap = CreateFileMapping(
-		hFile,
-		NULL,
-		PAGE_READONLY,
-		fileSize.HighPart, fileSize.LowPart, L"name");
+	hMap = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 1, 0, L"name1");
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -173,34 +156,20 @@ void OpenDatabase()
 	streatHashTable = new HashTable();
 	phoneNumberHashTable = new HashTable();
 
-	/*TCHAR* string;
+	TCHAR string[255];
+	int size = 255;
 	int stringLenght = 0;
-	long long offset = 0;
-	int blockNumber = 0;
-	long long   totalOffset = 0;
-	long long   maxOffset = 0;
-	while (totalOffset < fileSize.QuadPart)
+	int offset = 0;
+	while (ReadLine(hFile, string, size, &stringLenght))
 	{
-		long long lenght = BLOCKSIZE*sizeof(TCHAR)* 2;
-		maxOffset = BLOCKSIZE;
-		if ((blockNumber + 2)*sizeof(TCHAR)*BLOCKSIZE > fileSize.QuadPart)
-		{
-			lenght = fileSize.QuadPart - blockNumber*BLOCKSIZE*sizeof(TCHAR);
-			maxOffset = lenght / sizeof(TCHAR);
-		}
-		string = (TCHAR*)MapViewOfFile(hMap, FILE_MAP_READ, 0, blockNumber*BLOCKSIZE*sizeof(TCHAR), lenght);
-		while (offset < maxOffset)
-		{
-			long long prevOffset = offset;
-			Record record = ConvertStringToRecord(string, &offset);
-			surNameHashTable->AddElement(record.Surname, prevOffset, blockNumber);
-			streatHashTable->AddElement(record.Streat, offset, blockNumber);
-			phoneNumberHashTable->AddElement(std::to_wstring(record.PhoneNumber), offset, blockNumber);
-			totalOffset += (offset - prevOffset)*sizeof(TCHAR);
-		}
-		blockNumber++;
-		offset -= BLOCKSIZE;
-	}*/
+		if (string[0] == 0) continue;
+		Record record = ConvertStringToRecord(string);
+
+		surNameHashTable->AddElement(record.Surname, offset);
+		streatHashTable->AddElement(record.Streat, offset);
+		phoneNumberHashTable->AddElement(std::to_wstring(record.PhoneNumber), offset);
+		offset += stringLenght;
+	}
 	databaseOpened = true;
 	CloseHandle(hFile);
 }
@@ -214,99 +183,27 @@ void CloseDatabase()
 	databaseOpened = false;
 }
 
-Record GetElement(ListElement element)
+Record GetElement(int offset)
 {
-	long long lenght = BLOCKSIZE*sizeof(TCHAR)* 2;
-	if ((element.BlockOffset + 2)*sizeof(TCHAR)*BLOCKSIZE > fileSize.QuadPart)
-	{
-		lenght = fileSize.QuadPart - element.BlockOffset*BLOCKSIZE*sizeof(TCHAR);
-	}
-	TCHAR* string = (TCHAR*)MapViewOfFile(hMap, FILE_MAP_READ, 0, element.BlockOffset*BLOCKSIZE*sizeof(TCHAR), lenght);
-	string += element.Offset;
-	long long readOffset = 0;
-	Record result = ConvertStringToRecord(string, &readOffset);
+	TCHAR* string = (TCHAR*)MapViewOfFile(hMap, FILE_MAP_ALL_ACCESS, 0, offset, 256);
+	Record result =  ConvertStringToRecord(string);
 	UnmapViewOfFile(string);
-	
+	free(string);
 	return result;
 }
 
-
-std::wstring GetSurName(Record record)
-{
-	return record.Surname;
-}
-
-std::wstring GetStreat(Record record)
-{
-	return record.Streat;
-}
-
-
-std::wstring GetNumber(Record record)
-{
-	return std::to_wstring(record.PhoneNumber);
-}
-
-
-int Search(const TCHAR* surname, Record* buf, HashTable* hashTable,Operation operation)
+int Search(const TCHAR* surname, Record* buf, HashTable* hashTable)
 {
 
-	/*ListElement elemnts[255];
-	int count = hashTable->GetIndex(std::wstring(surname), elemnts);
-	for (int i = 0; i < count; i++)
+	int offsets[255];
+	hashTable->GetIndex(std::wstring(surname), offsets);
+	int i = 0;
+	while (offsets[i] != -1)
 	{
-		buf[i] = GetElement(elemnts[i]);
+		buf[i] = GetElement(offsets[i]);
+		i++;
 	}
-	return count;*/
-
-	int surnameLenght = _tcslen(surname) ;
-	int count = 0;
-	TCHAR* string;
-	int stringLenght = 0;
-	long long offset = 0;
-	int blockNumber = 0;
-	long long   totalOffset = offset;
-	long long   maxOffset = 0;
-	while (totalOffset < fileSize.QuadPart)
-	{
-		long long lenght = BLOCKSIZE*sizeof(TCHAR)* 2;
-		maxOffset = BLOCKSIZE;
-		if ((blockNumber + 2)*sizeof(TCHAR)*BLOCKSIZE > fileSize.QuadPart)
-		{
-			lenght = fileSize.QuadPart - blockNumber*BLOCKSIZE*sizeof(TCHAR);
-			maxOffset = lenght / sizeof(TCHAR);
-		}
-		string = (TCHAR*)MapViewOfFile(hMap, FILE_MAP_READ, 0, blockNumber*BLOCKSIZE*sizeof(TCHAR), lenght);
-		while (offset < maxOffset)
-		{
-			long long prevOffset = offset;
-			if (string[offset] == '\r')
-			{
-				offset += 2;
-				continue;
-			}
-			Record record = ConvertStringToRecord(string, &offset);
-			bool result = true;
-			std::wstring elem = operation(record).c_str();
-			int compareLenght = elem.size() > surnameLenght ? surnameLenght : elem.size();
-			for (int i = 0; i < compareLenght; i++)
-			{
-				if (elem[i] != surname[i])
-				{
-					result = false;
-					break;
-				}
-			}
-			if (result)
-			{
-				buf[count++] = record;
-			}
-			totalOffset += (offset - prevOffset)*sizeof(TCHAR);
-		}
-		blockNumber++;
-		offset -= BLOCKSIZE;
-	}
-	return count;
+	return i;
 }
 
 
@@ -314,7 +211,7 @@ LAB4_API int SearchSurname(const TCHAR* surname, Record* buf)
 {
 	if (databaseOpened)
 	{
-		return Search(surname, buf, surNameHashTable, GetSurName);
+		return Search(surname, buf, surNameHashTable);
 	}
 	return 0;
 }
@@ -323,7 +220,7 @@ LAB4_API int SearchStreat(const TCHAR* streat, Record* buf)
 {
 	if (databaseOpened)
 	{
-		return Search(streat, buf, streatHashTable, GetStreat);
+		return Search(streat, buf, streatHashTable);
 	}
 	return 0;
 }
@@ -333,7 +230,7 @@ LAB4_API int SearchPhoneNumber(int number, Record* buf)
 {
 	if (databaseOpened)
 	{
-		return Search(std::to_wstring(number).c_str(), buf, phoneNumberHashTable, GetNumber);
+		return Search(std::to_wstring(number).c_str(), buf, phoneNumberHashTable);
 	}
 	return 0;
 }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
